@@ -1,6 +1,6 @@
 package marquito;
 import robocode.*;
-//import java.awt.Color;
+import java.awt.Color;
 
 // API help : https://robocode.sourceforge.io/docs/robocode/robocode/Robot.html
 
@@ -13,12 +13,7 @@ public class Marquito extends Robot
 	 * run: Marquito's default behavior
 	 */
 	public void run() {
-		// Initialization of the robot should be put here
-
-		// After trying out your robot, try uncommenting the import at the top,
-		// and the next line:
-
-		//setColors(Color.red,Color.blue,Color.green, Color.green, Collor.red); // body,gun,radar??
+			setColors(Color.red,Color.blue,Color.green); // body,gun,radar??
 		
 
 		// Robot main loop
@@ -28,7 +23,6 @@ public class Marquito extends Robot
 			turnGunRight(360);
 			back(100);
 			turnGunRight(360);
-			
 		}
 	}
 
@@ -55,12 +49,4 @@ public class Marquito extends Robot
 		// Replace the next line with any behavior you would like
 		back(20);
 	}	
-	
-	//dança da vitória
-	public void onWin(WinEvent e) {
-		for (int i = 0; i < 50; i++) {
-			turnRight(30);
-			turnLeft(30);
-		}
-	}
 }
