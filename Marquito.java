@@ -1,4 +1,4 @@
-package Marquito;
+package marquito;
 import robocode.*;
 //import java.awt.Color;
 
@@ -28,6 +28,7 @@ public class Marquito extends Robot
 			turnGunRight(360);
 			back(100);
 			turnGunRight(360);
+			
 		}
 	}
 
@@ -54,4 +55,12 @@ public class Marquito extends Robot
 		// Replace the next line with any behavior you would like
 		back(20);
 	}	
+	
+	//dança da vitória
+	public void onWin(WinEvent e) {
+		for (int i = 0; i < 50; i++) {
+			turnRight(30);
+			turnLeft(30);
+		}
+	}
 }
