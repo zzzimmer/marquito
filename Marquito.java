@@ -30,8 +30,9 @@ public class Marquito extends Robot
 	 * onScannedRobot: What to do when you see another robot
 	 */
 	public void onScannedRobot(ScannedRobotEvent e) {
-		// Replace the next line with any behavior you would like
-		fire(1);
+		turnRight(e.getBearing() + 90);
+		ahead(50);
+		fire(2);
 	}
 
 	/**
