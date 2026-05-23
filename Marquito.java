@@ -1,14 +1,16 @@
 package marquito;
 import robocode.*;
 import java.awt.Color;
+import robocode.WinEvent;
+import robocode.AdvancedRobot;
 
 // API help : https://robocode.sourceforge.io/docs/robocode/robocode/Robot.html
 
 /**
  * Marquito - a robot by (your name here)
  */
-public class Marquito extends Robot
-{
+public class Marquito extends AdvancedRobot {
+	boolean movingForward;
 	/**
 	 * run: Marquito's default behavior
 	 */
@@ -18,11 +20,16 @@ public class Marquito extends Robot
 
 		// Robot main loop
 		while(true) {
-			// Replace the next 4 lines with any behavior you would like
-			ahead(100);
-			turnGunRight(360);
-			back(100);
-			turnGunRight(360);
+			setAhead(40000);
+			movingForward = true;
+			setTurnGunRight(90);
+			setTurnRight(90);
+			waitFor(new TurnCompleteCondition(this));
+			setTurnLeft(180);
+			waitFor(new TurnCompleteCondition(this));
+			setTurnGunLeft(90);
+			setTurnRight(180);
+			waitFor(new TurnCompleteCondition(this));
 		}
 	}
 
@@ -34,19 +41,26 @@ public class Marquito extends Robot
 		fire(1);
 	}
 
-	/**
-	 * onHitByBullet: What to do when you're hit by a bullet
-	 */
-	public void onHitByBullet(HitByBulletEvent e) {
-		// Replace the next line with any behavior you would like
-		back(10);
-	}
+
 	
 	/**
 	 * onHitWall: What to do when you hit a wall
 	 */
 	public void onHitWall(HitWallEvent e) {
-		// Replace the next line with any behavior you would like
-		back(20);
+		reverseDirection();
 	}	
+
+	public void onHitRobot(HitRobotEvent e) {
+				reverseDirection();
+	}
+	
+	public void reverseDirection() {
+	if (movingForward) {
+			setBack(40000);
+			movingForward = false;
+		} else {
+			setAhead(40000);
+			movingForward = true;
+		}
+	}
 }
