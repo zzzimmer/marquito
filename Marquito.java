@@ -1,53 +1,34 @@
 package marquito;
+
 import robocode.*;
+import robocode.util.Utils;
 import java.awt.Color;
 
-// API help : https://robocode.sourceforge.io/docs/robocode/robocode/Robot.html
+public class Marquito extends AdvancedRobot {
 
-/**
- * Marquito - a robot by (your name here)
- */
-public class Marquito extends Robot
-{
-	/**
-	 * run: Marquito's default behavior
-	 */
 	public void run() {
-			setColors(Color.red,Color.blue,Color.green); // body,gun,radar??
-		
+		setColors(Color.red, Color.blue, Color.green);
+		setAdjustGunForRobotTurn(true);
+		setAdjustRadarForGunTurn(true);
+		setAdjustRadarForRobotTurn(true);
 
-		// Robot main loop
-		while(true) {
-			// Replace the next 4 lines with any behavior you would like
-			ahead(100);
-			turnGunRight(360);
-			back(100);
-			turnGunRight(360);
+		while (true) {
+			setAhead(120);
+			setTurnRadarRightRadians(Double.POSITIVE_INFINITY);
+			execute();
 		}
 	}
 
-	/**
-	 * onScannedRobot: What to do when you see another robot
-	 */
 	public void onScannedRobot(ScannedRobotEvent e) {
-		turnRight(e.getBearing() + 90);
-		ahead(50);
-		fire(2);
+		double absBearing = getHeadingRadians() + e.getBearingRadians();
+		double radarTurn = Utils.normalRelativeAngle(absBearing - getRadarHeadingRadians());
+		setTurnRadarRightRadians(radarTurn * 2);
+		setTurnGunRightRadians(Utils.normalRelativeAngle(absBearing - getGunHeadingRadians()));
+		setFire(2);
 	}
 
-	/**
-	 * onHitByBullet: What to do when you're hit by a bullet
-	 */
-	public void onHitByBullet(HitByBulletEvent e) {
-		// Replace the next line with any behavior you would like
-		back(10);
-	}
-	
-	/**
-	 * onHitWall: What to do when you hit a wall
-	 */
 	public void onHitWall(HitWallEvent e) {
-		// Replace the next line with any behavior you would like
-		back(20);
-	}	
+		setBack(80);
+		setTurnRight(90);
+	}
 }
