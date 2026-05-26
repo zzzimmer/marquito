@@ -50,6 +50,7 @@ public class Marquito extends AdvancedRobot {
 		en.name = e.getName();
 		en.energy = e.getEnergy();
 		en.distance = e.getDistance();
+		en.bearing = e.getBearingRadians();
 		en.absBearing = absBearing;
 		en.heading = e.getHeadingRadians();
 		en.velocity = e.getVelocity();
@@ -91,8 +92,11 @@ public class Marquito extends AdvancedRobot {
 		double bestScore = Double.POSITIVE_INFINITY;
 
 		for (Enemy e : enemies.values()) {
-			if (getTime() - e.lastSeen > 25) continue;
-			double score = e.distance + e.energy * 12;
+			long age = getTime() - e.lastSeen;
+			if (age > 20) continue;
+
+			double score = e.distance * 1.2 + e.energy * 10 + Math.abs(e.velocity) * 35 + age * 20;
+
 			if (best == null || score < bestScore) {
 				best = e;
 				bestScore = score;
@@ -107,9 +111,17 @@ public class Marquito extends AdvancedRobot {
 		if (current == null) return true;
 		if (getTime() - current.lastSeen > 20) return true;
 
-		double currentScore = current.distance + current.energy * 12;
-		double candidateScore = candidate.distance + candidate.energy * 12;
-		return candidateScore < currentScore - 40;
+		double currentScore =
+				current.distance * 1.2 +
+						current.energy * 10 +
+						Math.abs(current.velocity) * 35;
+
+		double candidateScore =
+				candidate.distance * 1.2 +
+						candidate.energy * 10 +
+						Math.abs(candidate.velocity) * 35;
+
+		return candidateScore < currentScore - 60;
 	}
 
 	void doRadar() {
@@ -153,17 +165,19 @@ public class Marquito extends AdvancedRobot {
 
 	double firePower(Enemy t) {
 		double d = t.distance;
-		double p;
+		double p = 1.5;
 
-		if (getOthers() >= 6) p = 1.4;
-		else if (getOthers() >= 3) p = 1.8;
-		else p = 2.4;
+		if (getOthers() <= 2) p = 2.4;
+		else if (getOthers() <= 5) p = 2.0;
 
-		if (d < 140) p += 0.5;
-		if (d > 500) p -= 0.4;
-		if (getEnergy() < 20) p = Math.min(p, 1.6);
-		if (getEnergy() < 10) p = Math.min(p, 1.0);
-		if (t.energy < 6) p = Math.max(p, 2.2);
+		if (d < 180) p += 0.6;
+		else if (d > 500) p -= 0.4;
+
+		if (Math.abs(t.velocity) < 2) p += 0.4;
+		if (t.energy < 10) p += 0.3;
+
+		if (getEnergy() < 20) p = Math.min(p, 1.8);
+		if (getEnergy() < 10) p = Math.min(p, 1.2);
 
 		return limit(0.1, p, 3.0);
 	}
@@ -211,14 +225,15 @@ public class Marquito extends AdvancedRobot {
 	}
 
 	double wallSmoothing(Point2D.Double pos, double angle, int orientation) {
-		while (!field.contains(project(pos, angle, WALL_STICK))) {
+		int safety = 0;
+		while (!field.contains(project(pos, angle)) && safety++ < 100) {
 			angle += orientation * 0.05;
 		}
 		return angle;
 	}
 
-	Point2D.Double project(Point2D.Double src, double angle, double length) {
-		return new Point2D.Double(src.x + Math.sin(angle) * length, src.y + Math.cos(angle) * length);
+	Point2D.Double project(Point2D.Double src, double angle) {
+		return new Point2D.Double(src.x + Math.sin(angle) * Marquito.WALL_STICK, src.y + Math.cos(angle) * Marquito.WALL_STICK);
 	}
 
 	void setBackAsFront(double goAngle) {
@@ -246,6 +261,7 @@ public class Marquito extends AdvancedRobot {
 		String name;
 		double energy;
 		double distance;
+		double bearing;
 		double absBearing;
 		double heading;
 		double velocity;
