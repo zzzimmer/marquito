@@ -4,27 +4,38 @@ import robocode.*;
 import robocode.util.Utils;
 import java.awt.Color;
 import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 import java.util.HashMap;
 import java.util.Map;
 
 public class Marquito extends AdvancedRobot {
+	static final double WALL_MARGIN = 60;
+	static final double WALL_STICK = 140;
+	static final double ENEMY_FORCE = 55000;
+	static final double WALL_FORCE = 9000;
+	static final double CENTER_FORCE = 0.08;
+
+	Rectangle2D.Double field;
 	Map<String, Enemy> enemies = new HashMap<>();
-	String targetName;
+	String targetName = null;
 	int moveDir = 1;
+	long lastDirChange = 0;
 
 	public void run() {
 		setColors(Color.red, Color.blue, Color.green);
-		setAdjustGunForRobotTurn(true);
 		setAdjustRadarForGunTurn(true);
-		setAdjustRadarForRobotTurn(true);
+		setAdjustGunForRobotTurn(true);
+
+		field = new Rectangle2D.Double(
+				WALL_MARGIN,
+				WALL_MARGIN,
+				getBattleFieldWidth() - WALL_MARGIN * 2,
+				getBattleFieldHeight() - WALL_MARGIN * 2
+		);
 
 		while (true) {
 			chooseTarget();
-			if (nearWall()) {
-				moveDir = -moveDir;
-				setTurnRight(60);
-			}
-			setAhead(150 * moveDir);
+			doMovement();
 			doRadar();
 			doGun();
 			execute();
@@ -32,10 +43,9 @@ public class Marquito extends AdvancedRobot {
 	}
 
 	public void onScannedRobot(ScannedRobotEvent e) {
+		double absBearing = getHeadingRadians() + e.getBearingRadians();
 		Enemy en = enemies.get(e.getName());
 		if (en == null) en = new Enemy();
-
-		double absBearing = getHeadingRadians() + e.getBearingRadians();
 
 		en.name = e.getName();
 		en.energy = e.getEnergy();
@@ -48,6 +58,32 @@ public class Marquito extends AdvancedRobot {
 		en.lastSeen = getTime();
 
 		enemies.put(en.name, en);
+
+		if (targetName == null || shouldReplaceTarget(enemies.get(targetName), en)) targetName = en.name;
+
+		if (Math.random() < 0.025 && getTime() - lastDirChange > 18) {
+			moveDir = -moveDir;
+			lastDirChange = getTime();
+		}
+	}
+
+	public void onRobotDeath(RobotDeathEvent e) {
+		enemies.remove(e.getName());
+		if (e.getName().equals(targetName)) targetName = null;
+	}
+
+	public void onHitWall(HitWallEvent e) {
+		moveDir = -moveDir;
+		lastDirChange = getTime();
+		setBack(60);
+	}
+
+	public void onHitRobot(HitRobotEvent e) {
+		if (e.getName().equals(targetName) && e.getEnergy() < 8) setAhead(40);
+		else {
+			moveDir = -moveDir;
+			setBack(50);
+		}
 	}
 
 	void chooseTarget() {
@@ -55,8 +91,8 @@ public class Marquito extends AdvancedRobot {
 		double bestScore = Double.POSITIVE_INFINITY;
 
 		for (Enemy e : enemies.values()) {
-			if (getTime() - e.lastSeen > 20) continue;
-			double score = e.distance + e.energy * 10;
+			if (getTime() - e.lastSeen > 25) continue;
+			double score = e.distance + e.energy * 12;
 			if (best == null || score < bestScore) {
 				best = e;
 				bestScore = score;
@@ -66,47 +102,144 @@ public class Marquito extends AdvancedRobot {
 		targetName = best == null ? null : best.name;
 	}
 
+	boolean shouldReplaceTarget(Enemy current, Enemy candidate) {
+		if (candidate == null) return false;
+		if (current == null) return true;
+		if (getTime() - current.lastSeen > 20) return true;
+
+		double currentScore = current.distance + current.energy * 12;
+		double candidateScore = candidate.distance + candidate.energy * 12;
+		return candidateScore < currentScore - 40;
+	}
+
 	void doRadar() {
 		Enemy t = enemies.get(targetName);
-		if (t == null) {
+
+		if (t != null && getTime() - t.lastSeen <= 4) {
+			double turn = Utils.normalRelativeAngle(t.absBearing - getRadarHeadingRadians());
+			setTurnRadarRightRadians(turn * 2.0);
+		} else {
 			setTurnRadarRightRadians(Double.POSITIVE_INFINITY);
-			return;
 		}
-		double turn = Utils.normalRelativeAngle(t.absBearing - getRadarHeadingRadians());
-		setTurnRadarRightRadians(turn * 2);
 	}
 
 	void doGun() {
 		Enemy t = enemies.get(targetName);
 		if (t == null) return;
+		if (getTime() - t.lastSeen > 6) return;
 
-		double power = Math.clamp(400 / t.distance, 1, 3);
+		double power = firePower(t);
 		double bulletSpeed = 20 - 3 * power;
-		double time = Point2D.distance(getX(), getY(), t.x, t.y) / bulletSpeed;
-		double futureX = t.x + Math.sin(t.heading) * t.velocity * time;
-		double futureY = t.y + Math.cos(t.heading) * t.velocity * time;
-		double gunAngle = Math.atan2(futureX - getX(), futureY - getY());
 
-		setTurnGunRightRadians(Utils.normalRelativeAngle(gunAngle - getGunHeadingRadians()));
+		double tx = t.x;
+		double ty = t.y;
+		double vx = Math.sin(t.heading) * t.velocity;
+		double vy = Math.cos(t.heading) * t.velocity;
 
-		if (getGunHeat() == 0) setFire(power);
+		double time = Point2D.distance(getX(), getY(), tx, ty) / bulletSpeed;
+		double futureX = tx + vx * time;
+		double futureY = ty + vy * time;
+
+		futureX = limit(WALL_MARGIN, futureX, getBattleFieldWidth() - WALL_MARGIN);
+		futureY = limit(WALL_MARGIN, futureY, getBattleFieldHeight() - WALL_MARGIN);
+
+		double aim = Math.atan2(futureX - getX(), futureY - getY());
+		setTurnGunRightRadians(Utils.normalRelativeAngle(aim - getGunHeadingRadians()));
+
+		if (getGunHeat() == 0 && Math.abs(getGunTurnRemainingRadians()) < Math.toRadians(12)) {
+			setFire(power);
+		}
 	}
 
-	boolean nearWall() {
-		return getX() < 80 || getY() < 80 || getX() > getBattleFieldWidth() - 80 || getY() > getBattleFieldHeight() - 80;
+	double firePower(Enemy t) {
+		double d = t.distance;
+		double p;
+
+		if (getOthers() >= 6) p = 1.4;
+		else if (getOthers() >= 3) p = 1.8;
+		else p = 2.4;
+
+		if (d < 140) p += 0.5;
+		if (d > 500) p -= 0.4;
+		if (getEnergy() < 20) p = Math.min(p, 1.6);
+		if (getEnergy() < 10) p = Math.min(p, 1.0);
+		if (t.energy < 6) p = Math.max(p, 2.2);
+
+		return limit(0.1, p, 3.0);
 	}
 
-	public void onHitWall(HitWallEvent e) {
-		moveDir = -moveDir;
+	void doMovement() {
+		double x = getX();
+		double y = getY();
+
+		double forceX = 0;
+		double forceY = 0;
+
+		for (Enemy e : enemies.values()) {
+			if (getTime() - e.lastSeen > 20) continue;
+
+			double dx = x - e.x;
+			double dy = y - e.y;
+			double dist2 = dx * dx + dy * dy;
+			if (dist2 < 1) dist2 = 1;
+
+			double weight = ENEMY_FORCE * (0.6 + e.energy / 100.0);
+			forceX += dx / dist2 * weight;
+			forceY += dy / dist2 * weight;
+		}
+
+		forceX += WALL_FORCE / Math.max(1, (x * x));
+		forceX -= WALL_FORCE / Math.max(1, Math.pow(getBattleFieldWidth() - x, 2));
+		forceY += WALL_FORCE / Math.max(1, (y * y));
+		forceY -= WALL_FORCE / Math.max(1, Math.pow(getBattleFieldHeight() - y, 2));
+
+		double cx = getBattleFieldWidth() / 2.0;
+		double cy = getBattleFieldHeight() / 2.0;
+		forceX += (cx - x) * CENTER_FORCE;
+		forceY += (cy - y) * CENTER_FORCE;
+
+		Enemy t = enemies.get(targetName);
+		double angle = Math.atan2(forceX, forceY);
+
+		if (t != null && getTime() - t.lastSeen <= 5) {
+			double perp = t.absBearing + moveDir * Math.PI / 2.0;
+			angle = normalizeBearing(perp * 0.65 + angle * 0.35);
+		}
+
+		angle = wallSmoothing(new Point2D.Double(x, y), angle, moveDir);
+		setBackAsFront(angle);
 	}
 
-	public void onHitByBullet(HitByBulletEvent e) {
-		moveDir = -moveDir;
+	double wallSmoothing(Point2D.Double pos, double angle, int orientation) {
+		while (!field.contains(project(pos, angle, WALL_STICK))) {
+			angle += orientation * 0.05;
+		}
+		return angle;
 	}
 
-	public void onRobotDeath(RobotDeathEvent e) {
-		enemies.remove(e.getName());
-		if (e.getName().equals(targetName)) targetName = null;
+	Point2D.Double project(Point2D.Double src, double angle, double length) {
+		return new Point2D.Double(src.x + Math.sin(angle) * length, src.y + Math.cos(angle) * length);
+	}
+
+	void setBackAsFront(double goAngle) {
+		double angle = Utils.normalRelativeAngle(goAngle - getHeadingRadians());
+		if (Math.abs(angle) > Math.PI / 2) {
+			if (angle < 0) setTurnRightRadians(Math.PI + angle);
+			else setTurnLeftRadians(Math.PI - angle);
+			setBack(100);
+		} else {
+			if (angle < 0) setTurnLeftRadians(-angle);
+			else setTurnRightRadians(angle);
+			setAhead(100);
+		}
+	}
+
+	double normalizeBearing(double angle) {
+		return Utils.normalRelativeAngle(angle);
+	}
+
+	double limit(double min, double value, double max) {
+		return Math.max(min, Math.min(max, value));
 	}
 
 	static class Enemy {
