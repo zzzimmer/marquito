@@ -15,6 +15,10 @@ public class Marquito extends AdvancedRobot {
 		setAdjustRadarForRobotTurn(true);
 
 		while (true) {
+			if (nearWall()) {
+				moveDir = -moveDir;
+				setTurnRight(60);
+			}
 			setAhead(150 * moveDir);
 			setTurnRadarRightRadians(Double.POSITIVE_INFINITY);
 			execute();
@@ -30,6 +34,10 @@ public class Marquito extends AdvancedRobot {
 		setTurnGunRightRadians(Utils.normalRelativeAngle(absBearing - getGunHeadingRadians()));
 
 		if (getGunHeat() == 0) setFire(power);
+	}
+
+	boolean nearWall() {
+		return getX() < 80 || getY() < 80 || getX() > getBattleFieldWidth() - 80 || getY() > getBattleFieldHeight() - 80;
 	}
 
 	public void onHitWall(HitWallEvent e) {
