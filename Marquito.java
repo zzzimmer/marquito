@@ -3,9 +3,11 @@ package marquito;
 import robocode.*;
 import robocode.util.Utils;
 import java.awt.Color;
+import java.awt.geom.Point2D;
 
 public class Marquito extends AdvancedRobot {
-
+	String target;
+	double targetDistance = Double.POSITIVE_INFINITY;
 	int moveDir = 1;
 
 	public void run() {
@@ -15,25 +17,43 @@ public class Marquito extends AdvancedRobot {
 		setAdjustRadarForRobotTurn(true);
 
 		while (true) {
+			target = null;
+			targetDistance = Double.POSITIVE_INFINITY;
+			setTurnRadarRightRadians(Double.POSITIVE_INFINITY);
 			if (nearWall()) {
 				moveDir = -moveDir;
 				setTurnRight(60);
 			}
 			setAhead(150 * moveDir);
-			setTurnRadarRightRadians(Double.POSITIVE_INFINITY);
 			execute();
 		}
 	}
 
 	public void onScannedRobot(ScannedRobotEvent e) {
-		double absBearing = getHeadingRadians() + e.getBearingRadians();
-		double radarTurn = Utils.normalRelativeAngle(absBearing - getRadarHeadingRadians());
-		double power = Math.clamp(400 / e.getDistance(), 1, 3);
+		if (target == null || e.getDistance() < targetDistance || e.getName().equals(target)) {
+			target = e.getName();
+			targetDistance = e.getDistance();
 
-		setTurnRadarRightRadians(radarTurn * 2);
-		setTurnGunRightRadians(Utils.normalRelativeAngle(absBearing - getGunHeadingRadians()));
+			double absBearing = getHeadingRadians() + e.getBearingRadians();
+			double power = Math.clamp(400 / e.getDistance(), 1, 3);
+			double bulletSpeed = 20 - 3 * power;
 
-		if (getGunHeat() == 0) setFire(power);
+			double enemyX = getX() + Math.sin(absBearing) * e.getDistance();
+			double enemyY = getY() + Math.cos(absBearing) * e.getDistance();
+			double time = Point2D.distance(getX(), getY(), enemyX, enemyY) / bulletSpeed;
+			double futureX = enemyX + Math.sin(e.getHeadingRadians()) * e.getVelocity() * time;
+			double futureY = enemyY + Math.cos(e.getHeadingRadians()) * e.getVelocity() * time;
+			double gunAngle = Math.atan2(futureX - getX(), futureY - getY());
+
+			double radarTurn = Utils.normalRelativeAngle(absBearing - getRadarHeadingRadians());
+
+			setTurnRadarRightRadians(radarTurn * 2);
+			setTurnGunRightRadians(Utils.normalRelativeAngle(gunAngle - getGunHeadingRadians()));
+
+			if (getGunHeat() == 0) {
+				setFire(power);
+			}
+		}
 	}
 
 	boolean nearWall() {
